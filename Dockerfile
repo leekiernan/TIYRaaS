@@ -4,6 +4,8 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 COPY main.go .
+COPY reddit/ ./reddit/
+COPY instagram/ ./instagram/
 
 RUN go mod init tiktok-proxy && \
     go get github.com/sweepies/tok-dl@main && \

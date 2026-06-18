@@ -4,6 +4,7 @@ services:
     restart: always
     environment:
       - SECRET_TOKEN=${SECRET_TOKEN}
+      - RAPIDAPI_KEY=${RAPIDAPI_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
