@@ -15,6 +15,7 @@ import (
 
 	"tiktok-proxy/instagram"
 	"tiktok-proxy/reddit"
+	"tiktok-proxy/youtube"
 )
 
 type mediaItem struct {
@@ -44,6 +45,7 @@ func main() {
 	tiktokCaller := tikwm.New(cacheStore, logger)
 	igClient := instagram.New(rapidAPIKey, logger)
 	redditClient := reddit.New(rapidAPIKey, logger)
+	youtubeClient := youtube.New(rapidAPIKey, logger)
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Health check")
@@ -72,6 +74,8 @@ func main() {
 			handleInstagram(w, r, igClient, rawURL, logger)
 		case "reddit":
 			handleReddit(w, r, redditClient, rawURL, logger)
+		case "youtube":
+			handleYouTube(w, r, youtubeClient, rawURL, logger)
 		default:
 			handleTikTok(w, r, tiktokCaller, rawURL, logger)
 		}
@@ -93,6 +97,8 @@ func classify(rawURL string) string {
 		return "instagram"
 	case strings.HasSuffix(host, "reddit.com"), strings.HasSuffix(host, "redd.it"):
 		return "reddit"
+	case strings.HasSuffix(host, "youtube.com"), strings.HasSuffix(host, "youtube-nocookie.com"):
+		return "youtube"
 	}
 	return ""
 }
@@ -157,6 +163,27 @@ func handleReddit(w http.ResponseWriter, r *http.Request, c *reddit.Client, rawU
 		return
 	}
 	streamZip(w, toMediaItems(media), "reddit_"+post.ID+".zip", logger)
+}
+
+func handleYouTube(w http.ResponseWriter, r *http.Request, c *youtube.Client, rawURL string, logger *log.Logger) {
+	parsed := youtube.ParseURL(rawURL)
+	if parsed.Kind != youtube.URLShorts {
+		http.Error(w, "Unsupported YouTube URL — only /shorts/ URLs are supported", http.StatusBadRequest)
+		return
+	}
+
+	stream, err := c.FetchShorts(parsed.VideoID)
+	if err != nil {
+		logger.Error("YouTube fetch failed", "video_id", parsed.VideoID, "error", err)
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	streamSingle(w, mediaItem{
+		URL:      stream.URL,
+		Filename: fmt.Sprintf("shorts_%s.mp4", parsed.VideoID),
+		IsVideo:  true,
+	}, logger)
 }
 
 func handleTikTok(w http.ResponseWriter, r *http.Request, caller tikwm.ApiCaller, rawUrl string, logger *log.Logger) {
